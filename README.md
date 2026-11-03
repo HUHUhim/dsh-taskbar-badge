@@ -31,7 +31,11 @@ In **DSH → Plugins → Add plugin**, enter:
 HUHUhim/dsh-taskbar-badge
 ```
 
+You can also paste the full repository URL: `https://github.com/HUHUhim/dsh-taskbar-badge`.
+
 Then fully quit and restart Harness. The bundle layer is assembled at startup, so a page refresh is not enough.
+
+> Migrating from the local development version? Uninstall `dsh-taskbar-badge-bridge` first. It uses the same helper and would otherwise run a second title watcher.
 
 After the restart, the taskbar icon should get a blue number badge when another conversation completes. Opening that conversation clears its unread count.
 

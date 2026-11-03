@@ -1,0 +1,59 @@
+{
+  "name": "dsh-taskbar-badge",
+  "version": "0.1.0",
+  "description": "Windows taskbar unread badge and window-bounds restore for DeepSeek Harness.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "bin/dsh-taskbar-badge.exe",
+    "bin/dsh-taskbar-badge.cs",
+    "scripts/build-helper.ps1",
+    "assets/icon-180.png",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "windows",
+    "taskbar",
+    "badge",
+    "window-bounds"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HUHUhim/dsh-taskbar-badge.git"
+  },
+  "homepage": "https://github.com/HUHUhim/dsh-taskbar-badge#readme",
+  "bugs": {
+    "url": "https://github.com/HUHUhim/dsh-taskbar-badge/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-session"
+      ]
+    }
+  }
+}

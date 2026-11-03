@@ -1,0 +1,8 @@
+# Bundle layer for dsh-taskbar-badge.
+#
+# `./index.js` is anchored beside this file by the DSH profile loader, so the
+# host half stays inside the package instead of relying on a user-specific
+# profile patch.
+- insert:
+    - id: taskbar-badge
+      name: ./index.js

@@ -348,18 +348,31 @@ internal static class Program
 
         EnumWindows(delegate(IntPtr hwnd, IntPtr lparam)
         {
-            uint pid;
-            GetWindowThreadProcessId(hwnd, out pid);
-            Process process;
-            try { process = Process.GetProcessById((int)pid); }
-            catch { return true; }
-            if (!string.Equals(process.ProcessName, "DeepSeek Harness", StringComparison.OrdinalIgnoreCase)) return true;
-
+            // Cheap filters first. This callback runs for every top-level window
+            // (several hundred on a busy desktop) and Process.GetProcessById costs
+            // ~2.5 ms per call because it opens the target process. Resolving the
+            // process before the title made the 800 ms poll loop CPU-bound: one
+            // full core burned permanently by this helper. GetWindowText is ~10 us,
+            // so the title test narrows the candidates to one window before any
+            // process handle is opened. The accepted window set is unchanged:
+            // both the title test and the process-name test are still required.
             var title = new StringBuilder(512);
             GetWindowText(hwnd, title, title.Capacity);
             string text = title.ToString();
             if (text.IndexOf("DeepSeek Harness", StringComparison.OrdinalIgnoreCase) < 0) return true;
             if (text.StartsWith("Developer Tools", StringComparison.OrdinalIgnoreCase)) return true;
+
+            uint pid;
+            GetWindowThreadProcessId(hwnd, out pid);
+            if (pid == 0) return true;
+            Process process;
+            try { process = Process.GetProcessById((int)pid); }
+            catch { return true; }
+            string processName;
+            try { processName = process.ProcessName; }
+            catch { return true; }
+            finally { process.Dispose(); }
+            if (!string.Equals(processName, "DeepSeek Harness", StringComparison.OrdinalIgnoreCase)) return true;
 
             RECT rect;
             GetWindowRect(hwnd, out rect);

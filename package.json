@@ -1,7 +1,7 @@
 {
   "name": "dsh-taskbar-badge",
-  "version": "0.1.1",
-  "description": "Windows taskbar unread badge and window-bounds restore for DeepSeek Harness.",
+  "version": "0.2.0",
+  "description": "Windows taskbar unread badge for DeepSeek Harness.",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -26,8 +26,7 @@
     "deepseek-harness",
     "windows",
     "taskbar",
-    "badge",
-    "window-bounds"
+    "badge"
   ],
   "license": "MIT",
   "repository": {

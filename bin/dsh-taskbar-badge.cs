@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -18,13 +17,6 @@ internal static class Program
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "DSH");
     private static readonly string LogPath = Path.Combine(DataDirectory, "taskbar-badge.log");
-    private static readonly string BoundsPath = Path.Combine(DataDirectory, "window-bounds.txt");
-    private static readonly BoundsState SavedBounds = LoadBounds();
-    private static IntPtr boundsWindow = IntPtr.Zero;
-    private static DateTime boundsRestoreAt = DateTime.MinValue;
-    private static int boundsRestoreTries;
-    private static bool boundsRestored;
-    private static BoundsState lastBounds;
 
     [STAThread]
     private static void Main(string[] args)
@@ -80,16 +72,11 @@ internal static class Program
                         lastWindow = hwnd;
                         lastCount = count;
                     }
-                    TrackBounds(hwnd);
                 }
                 else if (lastWindow != IntPtr.Zero)
                 {
                     lastWindow = IntPtr.Zero;
                     lastCount = -1;
-                    boundsWindow = IntPtr.Zero;
-                    boundsRestoreTries = 0;
-                    boundsRestored = false;
-                    lastBounds = null;
                 }
             }
             catch (Exception error)
@@ -97,212 +84,6 @@ internal static class Program
                 Log("loop: " + error.Message);
             }
             Thread.Sleep(800);
-        }
-    }
-
-    private static void TrackBounds(IntPtr hwnd)
-    {
-        if (hwnd != boundsWindow)
-        {
-            boundsWindow = hwnd;
-            boundsRestoreTries = 0;
-            boundsRestoreAt = DateTime.UtcNow.AddMilliseconds(1200);
-            boundsRestored = SavedBounds == null;
-            lastBounds = null;
-        }
-
-        if (!boundsRestored)
-        {
-            if (DateTime.UtcNow < boundsRestoreAt) return;
-            if (IsWindowVisible(hwnd) && TryRestoreBounds(hwnd, SavedBounds))
-            {
-                boundsRestored = true;
-                lastBounds = SavedBounds;
-                Log("bounds restore " + SavedBounds.Left + "," + SavedBounds.Top + " " +
-                    SavedBounds.Width + "x" + SavedBounds.Height +
-                    (SavedBounds.Maximized ? " maximized" : ""));
-                return;
-            }
-
-            boundsRestoreTries++;
-            if (boundsRestoreTries >= 12)
-            {
-                boundsRestored = true;
-                Log("bounds restore skipped");
-            }
-            else
-            {
-                boundsRestoreAt = DateTime.UtcNow.AddMilliseconds(700);
-            }
-            return;
-        }
-
-        BoundsState current = ReadBounds(hwnd);
-        if (current == null) return;
-        if (lastBounds == null || !lastBounds.Same(current))
-        {
-            SaveBounds(current);
-            lastBounds = current;
-        }
-    }
-
-    private static bool TryRestoreBounds(IntPtr hwnd, BoundsState state)
-    {
-        if (state == null) return false;
-        RECT rect = ClampToVisible(state);
-        var placement = new WINDOWPLACEMENT
-        {
-            length = Marshal.SizeOf(typeof(WINDOWPLACEMENT)),
-            showCmd = state.Maximized ? 3 : 1,
-            rcNormalPosition = rect
-        };
-        return SetWindowPlacement(hwnd, ref placement);
-    }
-
-    private static RECT ClampToVisible(BoundsState state)
-    {
-        var rect = new RECT
-        {
-            Left = state.Left,
-            Top = state.Top,
-            Right = state.Left + state.Width,
-            Bottom = state.Top + state.Height
-        };
-
-        IntPtr monitor = MonitorFromRect(ref rect, 2);
-        var info = new MONITORINFO();
-        info.cbSize = Marshal.SizeOf(typeof(MONITORINFO));
-        if (!GetMonitorInfo(monitor, ref info)) return rect;
-
-        RECT work = info.rcWork;
-        bool intersects = rect.Right > work.Left && rect.Left < work.Right &&
-                          rect.Bottom > work.Top && rect.Top < work.Bottom;
-        if (!intersects)
-        {
-            int workWidth = work.Right - work.Left;
-            int workHeight = work.Bottom - work.Top;
-            int width = Math.Min(state.Width, workWidth);
-            int height = Math.Min(state.Height, workHeight);
-            rect.Left = work.Left + Math.Max(0, (workWidth - width) / 2);
-            rect.Top = work.Top + Math.Max(0, (workHeight - height) / 2);
-            rect.Right = rect.Left + width;
-            rect.Bottom = rect.Top + height;
-        }
-        return rect;
-    }
-
-    private static BoundsState ReadBounds(IntPtr hwnd)
-    {
-        var placement = new WINDOWPLACEMENT();
-        placement.length = Marshal.SizeOf(typeof(WINDOWPLACEMENT));
-        if (!GetWindowPlacement(hwnd, ref placement)) return null;
-
-        RECT rect = placement.rcNormalPosition;
-        int width = rect.Right - rect.Left;
-        int height = rect.Bottom - rect.Top;
-        if (width < 520 || height < 600) return null;
-
-        bool maximized;
-        if (placement.showCmd == 2)
-        {
-            maximized = lastBounds != null
-                ? lastBounds.Maximized
-                : SavedBounds != null && SavedBounds.Maximized;
-        }
-        else
-        {
-            maximized = placement.showCmd == 3;
-        }
-
-        return new BoundsState
-        {
-            Left = rect.Left,
-            Top = rect.Top,
-            Width = width,
-            Height = height,
-            Maximized = maximized
-        };
-    }
-
-    private static BoundsState LoadBounds()
-    {
-        try
-        {
-            if (!File.Exists(BoundsPath)) return null;
-            var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (string line in File.ReadAllLines(BoundsPath))
-            {
-                int separator = line.IndexOf('=');
-                if (separator <= 0) continue;
-                values[line.Substring(0, separator).Trim()] = line.Substring(separator + 1).Trim();
-            }
-
-            int left, top, width, height;
-            if (!TryGetInt(values, "left", out left) ||
-                !TryGetInt(values, "top", out top) ||
-                !TryGetInt(values, "width", out width) ||
-                !TryGetInt(values, "height", out height)) return null;
-            if (width < 520 || height < 600 || width > 20000 || height > 20000) return null;
-
-            string maximizedText;
-            bool maximized = values.TryGetValue("maximized", out maximizedText) && maximizedText == "1";
-            return new BoundsState
-            {
-                Left = left,
-                Top = top,
-                Width = width,
-                Height = height,
-                Maximized = maximized
-            };
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static bool TryGetInt(Dictionary<string, string> values, string key, out int value)
-    {
-        value = 0;
-        string text;
-        return values.TryGetValue(key, out text) && int.TryParse(text, out value);
-    }
-
-    private static void SaveBounds(BoundsState state)
-    {
-        try
-        {
-            Directory.CreateDirectory(DataDirectory);
-            string text =
-                "left=" + state.Left + "\n" +
-                "top=" + state.Top + "\n" +
-                "width=" + state.Width + "\n" +
-                "height=" + state.Height + "\n" +
-                "maximized=" + (state.Maximized ? "1" : "0") + "\n";
-            string temporary = BoundsPath + ".tmp";
-            File.WriteAllText(temporary, text);
-            if (File.Exists(BoundsPath)) File.Delete(BoundsPath);
-            File.Move(temporary, BoundsPath);
-        }
-        catch { }
-    }
-
-    private sealed class BoundsState
-    {
-        public int Left;
-        public int Top;
-        public int Width;
-        public int Height;
-        public bool Maximized;
-
-        public bool Same(BoundsState other)
-        {
-            return other != null &&
-                   Left == other.Left &&
-                   Top == other.Top &&
-                   Width == other.Width &&
-                   Height == other.Height &&
-                   Maximized == other.Maximized;
         }
     }
 
@@ -531,48 +312,10 @@ internal static class Program
     private static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
 
     [DllImport("user32.dll")]
-    private static extern bool IsWindowVisible(IntPtr hwnd);
-
-    [DllImport("user32.dll")]
-    private static extern bool GetWindowPlacement(IntPtr hwnd, ref WINDOWPLACEMENT placement);
-
-    [DllImport("user32.dll")]
-    private static extern bool SetWindowPlacement(IntPtr hwnd, ref WINDOWPLACEMENT placement);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr MonitorFromRect(ref RECT rect, uint flags);
-
-    [DllImport("user32.dll")]
-    private static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO info);
-
-    [DllImport("user32.dll")]
     private static extern bool DestroyIcon(IntPtr icon);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct POINT { public int X; public int Y; }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct WINDOWPLACEMENT
-    {
-        public int length;
-        public int flags;
-        public int showCmd;
-        public POINT ptMinPosition;
-        public POINT ptMaxPosition;
-        public RECT rcNormalPosition;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MONITORINFO
-    {
-        public int cbSize;
-        public RECT rcMonitor;
-        public RECT rcWork;
-        public uint dwFlags;
-    }
 
     [DllImport("ole32.dll")]
     private static extern int CoCreateInstance(

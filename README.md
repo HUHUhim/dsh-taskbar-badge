@@ -1,13 +1,12 @@
 # DSH Taskbar Badge
 
-A Windows taskbar overlay badge for DeepSeek Harness that shows how many conversations finished while you were not looking. The same helper also remembers and restores the DSH window size and position across Harness restarts.
+A Windows taskbar overlay badge for DeepSeek Harness that shows how many conversations finished while you were not looking.
 
 ## Features
 
 - Blue count badge on the DSH taskbar icon, like Codex/Teams unread badges.
 - Counts completed, unread DSH conversations (subagent and archived sessions are ignored).
 - Works while DSH is minimized, in the background, or has its sidebar collapsed.
-- Restores the DSH window bounds from the previous close, including the maximized state.
 - Starts with Harness through the plugin host half; there is no Windows Startup-folder entry.
 - Windows only. On other platforms the plugin loads but does nothing.
 
@@ -48,16 +47,13 @@ The package has two halves:
 
 The helper reads the `[N]` prefix from the DSH window title. If the prefix is absent it falls back to counting completed rows in the sidebar through Windows UI Automation. Every 800 ms it calls `ITaskbarList3.SetOverlayIcon` with a generated 24×24 badge, so minimized windows and collapsed sidebars do not matter.
 
-For window bounds, the helper uses `GetWindowPlacement` / `SetWindowPlacement`, saves the normal rectangle to `%LOCALAPPDATA%\DSH\window-bounds.txt`, and clamps it to the monitor work area on restore.
-
 ## Privacy and security
 
 - No network access and no telemetry.
 - Reads only the DSH window title and, as a fallback, DSH sidebar status rows through Windows UI Automation.
-- Writes local diagnostics and state under `%LOCALAPPDATA%\DSH\`:
+- Writes local diagnostics under `%LOCALAPPDATA%\DSH\`:
   - `taskbar-badge.log`
   - `taskbar-badge-bridge.log`
-  - `window-bounds.txt`
 - The helper is an unsigned .NET executable. Windows SmartScreen may warn the first time; the full C# source is in `bin/dsh-taskbar-badge.cs` and can be rebuilt locally.
 
 ## Build the helper from source
@@ -74,7 +70,7 @@ The script uses the .NET Framework 4.x `csc.exe` and the WPF UI Automation refer
 
 1. Remove **dsh-taskbar-badge** from the DSH plugin list.
 2. Quit Harness, then end any remaining `dsh-taskbar-badge.exe` process.
-3. Optionally delete `%LOCALAPPDATA%\DSH\taskbar-badge.log`, `taskbar-badge-bridge.log`, and `window-bounds.txt`.
+3. Optionally delete `%LOCALAPPDATA%\DSH\taskbar-badge.log` and `taskbar-badge-bridge.log`.
 
 No Windows startup entry is created, so there is nothing to remove from `shell:startup`.
 

@@ -2,7 +2,7 @@
  * Host half of dsh-taskbar-badge.
  *
  * Starts the bundled Windows helper together with Harness, so the taskbar
- * overlay and window-bounds restore survive every Harness restart.
+ * unread badge survives every Harness restart.
  *
  * This file must not import DSH packages: it is a bundle patch row and is
  * loaded by the host before client plugins exist.
